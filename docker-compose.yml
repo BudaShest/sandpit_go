@@ -1,0 +1,6 @@
+services:
+  tcpdump:
+    build: .
+    ports:
+      - "5221:5221"
+    restart: unless-stopped
