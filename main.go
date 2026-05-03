@@ -61,8 +61,10 @@ func main() {
 type sess struct {
 	starS bool
 	flex  bool
-	// allParamsLength — сумма байт выбранных полей FLEX 3.0 по маске (для валидации ~A / ~T).
+	// allParamsLength — сумма байт выбранных полей FLEX 3.0 по маске (messages = msg_count * all_params_length).
 	allParamsLength int
+	// flexFieldIDs — порядок включённых полей по маске (для нарезки записи ~A).
+	flexFieldIDs []int
 }
 
 func handleConn(conn net.Conn) {
@@ -87,8 +89,12 @@ func handleConn(conn net.Conn) {
 			acc = append(acc, chunk...)
 			if !st.starS {
 				tryStarSAck(conn, remote, &acc, &st)
-			} else if !st.flex {
+			}
+			if st.starS && !st.flex {
 				tryFlexAck(conn, remote, &acc, &st)
+			}
+			if st.starS && st.flex {
+				processFlexTelemetry(conn, remote, &acc, &st)
 			}
 		}
 		if err != nil {
@@ -183,6 +189,7 @@ func tryFlexAck(conn net.Conn, remote string, acc *[]byte, st *sess) {
 			log.Printf("[%s] warning: no flex30FieldBytes for param IDs %v (all_params_length partial)", remote, unknown)
 		}
 		st.allParamsLength = sum
+		st.flexFieldIDs = ids
 		log.Printf("[%s] all_params_length=%d (sum of known field sizes)", remote, sum)
 
 		out := ackFlexWire
